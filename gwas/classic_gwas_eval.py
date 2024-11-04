@@ -10,11 +10,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_score
 
-from ggwas.data import ukbb_cohort
-from ggwas.utils import print_sys, evaluate, compute_metrics, save_dict, \
+from kgwas.data import ukbb_cohort
+from kgwas.utils import print_sys, evaluate, compute_metrics, save_dict, \
                         load_dict, get_args, load_pretrained, save_model, \
                         get_gwas_results
-from ggwas.params import main_data_path, cohort_data_path, kinship_path, withdraw_path, gwas_result_path
+from kgwas.params import main_data_path, cohort_data_path, kinship_path, withdraw_path, gwas_result_path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='plink', choices = ['plink', 'fastgwa_full', 'fastgwa_match', 'gold_label', 'fastgwa_gold'])
@@ -157,7 +157,7 @@ else:
 
     if args.wandb:
         import wandb
-        wandb.init(project='GGWAS', name=name)
+        wandb.init(project='KGWAS', name=name)
         wandb.config.update(args)
 
 
