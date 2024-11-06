@@ -1,6 +1,6 @@
 <p align="center"><img src="./fig/kgwas_logo.png" alt="logo" width="600px" /></p>
 
-# KGWAS: genetics discovery powered by functional genomics knowledge graph
+# Genetics discovery powered by functional genomics knowledge graph
 
 ## Overview
 
