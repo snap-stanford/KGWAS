@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 import torch
-from .params import data_path, main_data_path, cohort_data_path, kinship_path, withdraw_path, fam_path
+from .params import main_data_path, cohort_data_path, kinship_path, withdraw_path, fam_path
 from .utils import get_fields, get_row_last_values, remove_kinships, save_dict, load_dict, print_sys
 
 

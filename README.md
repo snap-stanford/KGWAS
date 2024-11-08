@@ -13,37 +13,44 @@ Install Pytorch Geometric follow [this instruction](https://pytorch-geometric.re
 pip install KGWAS
 ```
 
-## Core KGWAS API Usage
+## Data download
+To ensure fast user experience, we provide a default fast mode of KGWAS, which uses Enformer embedding for variant feature and ESM embedding for gene features (instead of the baselineLD for variant and PoPS for gene since they are large files). For the fast mode, you do not need to download any data, the KGWAS API will automatically download the relevant files. This mode can be used to apply KGWAS to your own GWAS sumstats. 
 
+If you want to (1) use the full mode of KGWAS or (2) access the null/causal simulations or (3) access the 21 subsampled GWAS sumstats across various sample sizes or (4) analyze the KGWAS sumstats for subsampled data or (5) analyze the KGWAS sumstats for all UKBB ICD10 diseases, please download everything from [here](). Note that this file is large (around 40GB) and may take a while to download.
+
+## Core KGWAS API Usage
 
 ```python
 
 from kgwas import KGWAS, KGWAS_Data
-data = KGWAS_Data()
-data.load_kg()
+data = KGWAS_Data(data_path = './data') ## initialize KGWAS data class with data path
 
-data.load_external_gwas(PATH)
-data.process_gwas_file()
-data.prepare_split()
+data.load_kg() ## load the knowledge graph
+data.load_external_gwas(PATH) ## load the GWAS file
+data.process_gwas_file() ## process the GWAS file
+data.prepare_split() ## prepare the train/val/test split
 
-run = KGWAS(data,
-            weight_bias_track = True,
-            device = device,
-            proj_name = 'KGWAS',
-            exp_name = exp_name,
-            seed = seed)
-
+run = KGWAS(data, device = 'cuda:0', seed = 1) ## initialize KGWAS model
 run.initialize_model()
-run.train(epoch = 10)
+
+run.train(epoch = 10) ## train the model
 ```
 
-## Tutorial
+
+## Tutorial [[Coming soon!]]
 
 | Notebook | Try on Colab | Description                                             |
 ----------|--------------|---------------------------------------------------------|
-| [kgwas_tutorial.ipynb](demo/kgwas_tutorial.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on key KGWAS API and functionalities. |
-| [kgwas_use_your_own_gwas.ipynb](demo/kgwas_use_your_own_gwas.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on applying KGWAS to your own GWAS summary statistics. |
-| [kgwas_subsampling.ipynb](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on the subsampling analysis. |
+| [Introduction](demo/introduction.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on key KGWAS API and functionalities. |
+| [Apply KGWAS to your own sumstats](demo/kgwas_use_your_own_gwas.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on applying KGWAS to your own GWAS summary statistics. |
+| [Use alternative variant/gene/program embedding](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on using alternative variant/gene/program embedding (e.g. foundation model embedding). |
+| [Simulation analysis](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on the subsampling analysis. |
+| [Subsampling analysis](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on the subsampling analysis. |
+
+
+## Extended API Usage
+
+`data.load_kg(snp_init_emb = 'enformer', go_init_emb = 'random', gene_init_emb = 'esm', sample_edges = False, sample_ratio = 1)`
 
 
 ### Cite Us

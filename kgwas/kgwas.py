@@ -17,7 +17,6 @@ from .utils import print_sys, compute_metrics, save_dict, \
                         load_dict, load_pretrained, save_model, evaluate_minibatch_clean, process_data
 from .eval_utils import storey_ribshirani_integrate, get_clumps_gold_label, get_meta_clumps, \
                         get_mega_clump_query, get_curve, find_closest_x
-from .params import save_model_path, data_path
 from .model import HeteroGNN
 
 class KGWAS:
@@ -37,6 +36,7 @@ class KGWAS:
         self.device = device if use_cuda else "cpu"
 
         self.data = data
+        self.data_path = data.data_path
         if weight_bias_track:
             import wandb
             wandb.init(project=proj_name, name=exp_name)  
@@ -175,6 +175,7 @@ class KGWAS:
 
 
         if save_base_model:
+            save_model_path = self.data_path + '/model/'
             print_sys('Saving models to ' + os.path.join(save_model_path, save_name))
             save_model(self.best_model, self.config, os.path.join(save_model_path, save_name))
 
@@ -202,7 +203,8 @@ class KGWAS:
         lr_uni_to_save['KGWAS_P'] = scale_factor * lr_uni_to_save['P_weighted']
         lr_uni_to_save['KGWAS_P'] = lr_uni_to_save['KGWAS_P'].clip(lower=0, upper=1)
 
-        if not os.path.exists(data_path + '/model_pred/'):
-            os.makedirs(data_path + '/model_pred/')
-        lr_uni_to_save.to_csv(data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
+        if not os.path.exists(self.data_path + '/model_pred/'):
+            os.makedirs(self.data_path + '/model_pred/')
+            os.makedirs(self.data_path + '/model_pred/new_experiments/')
+        lr_uni_to_save.to_csv(self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
 

@@ -4,17 +4,9 @@ import torch
 from scipy import interpolate
 
 from .utils import load_dict
-from .params import data_path
 import pandas as pd
 import numpy as np
 from copy import copy
-
-snp2ld_snps_with_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB.pkl')
-snp2ld_snps_no_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB_no_hla.pkl')
-
-snp2cm = dict(pd.read_csv(data_path + 'misc_data/ukb_white_with_cm.bim', sep = '\t', header = None)[[1, 2]].values)
-snp2chr = dict(pd.read_csv(data_path + 'misc_data/ukb_white_with_cm.bim', sep = '\t', header = None)[[1, 0]].values)
-
 
 def find_closest_x(df_pred, lower_bound=0, upper_bound=200, tolerance=0.01):
     upper = 1e-2
@@ -35,7 +27,10 @@ def find_closest_x(df_pred, lower_bound=0, upper_bound=200, tolerance=0.01):
 
     return mid
 
-def get_clumps_gold_label(gold_label_gwas, t_p = 5e-8, no_hla = False, column = 'P', snp2ld_snps = None):
+def get_clumps_gold_label(data_path, gold_label_gwas, t_p = 5e-8, no_hla = False, column = 'P', snp2ld_snps = None):
+    snp2ld_snps_with_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB.pkl')
+    snp2ld_snps_no_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB_no_hla.pkl')
+
     if not snp2ld_snps:
         if no_hla:
             snp2ld_snps = snp2ld_snps_no_hla
@@ -60,7 +55,10 @@ def get_clumps_gold_label(gold_label_gwas, t_p = 5e-8, no_hla = False, column = 
                 snps_in_clumps += [snp]
     return clumps
 
-def get_meta_clumps(clumps):
+def get_meta_clumps(clumps, data_path):
+    snp2cm = dict(pd.read_csv(data_path + 'misc_data/ukb_white_with_cm.bim', sep = '\t', header = None)[[1, 2]].values)
+    snp2chr = dict(pd.read_csv(data_path + 'misc_data/ukb_white_with_cm.bim', sep = '\t', header = None)[[1, 0]].values)
+
     idx2clump = {'Clump ' + str(idx): i for idx, i in enumerate(clumps)}
     idx2clump_chromosome = {'Clump ' + str(idx): snp2chr[i[0]] for idx, i in enumerate(clumps)}
     idx2clump_cm = {'Clump ' + str(idx): snp2cm[i[0]] for idx, i in enumerate(clumps)}
@@ -101,7 +99,10 @@ def get_meta_clumps(clumps):
     return idx2mega_clump, idx2mega_clump_rsid, idx2mega_clump_chrom
     
     
-def get_mega_clump_query(clumps, snp_hits, no_hla = False, snp2ld_snps = None):
+def get_mega_clump_query(data_path, clumps, snp_hits, no_hla = False, snp2ld_snps = None):
+    snp2ld_snps_with_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB.pkl')
+    snp2ld_snps_no_hla = load_dict(data_path + 'ld_score/ukb_white_ld_10MB_no_hla.pkl')
+
     if not snp2ld_snps:
         if no_hla:
             snp2ld_snps = snp2ld_snps_no_hla

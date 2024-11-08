@@ -1,9 +1,6 @@
-data_path = '/dfs/project/datasets/20220524-ukbiobank/data/kgwas_data/'
-save_model_path = data_path + 'ml_model'
+## The raw UKBB genotype data paths. If you have access to it, please modify the paths accordingly. 
 cohort_data_path = '/dfs/project/datasets/20220524-ukbiobank/data/cohort/'
 ukbb_data_path = '/dfs/project/datasets/20220524-ukbiobank/data/genetics/'
-
-## The raw UKBB genotype data paths. If you have access to it, please modify the paths accordingly. 
 main_data_path = '/dfs/project/datasets/20220524-ukbiobank/data/ukb_main/ukb52124.csv'
 kinship_path = '/dfs/project/datasets/20220524-ukbiobank/data/genetics/ukb_rel_a79791_s488170.dat'
 withdraw_path = '/dfs/project/datasets/20220524-ukbiobank/data/withdraw'

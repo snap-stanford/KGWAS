@@ -6,23 +6,24 @@ import pandas as pd
 import torch
 import numpy as np
 import pickle
+import os
 
 from .utils import ldsc_regression_weights, load_dict
-from .params import scdrs_traits, data_path
-
-
+from .params import scdrs_traits
 
 class KGWAS_Data:
-    def __init__(self):
-        pass
+    def __init__(self, data_path = './data'):
+        self.data_path = data_path
+        if not os.path.exists(data_path):
+            os.makedirs(data_path)
 
-    def load_kg(self, snp_init_emb = 'baselineLD', go_init_emb = 'random', gene_init_emb = 'pops_all', random_emb = False, sample_edges = False, sample_ratio = 1):
-        
-        if random_emb:
-            print('Setting to all random embeddings!')
-            snp_init_emb = 'random'
-            go_init_emb = 'random'
-            gene_init_emb = 'random'
+    def load_kg(self, snp_init_emb = 'enformer', 
+                    go_init_emb = 'random',
+                    gene_init_emb = 'esm', 
+                    sample_edges = False, 
+                    sample_ratio = 1):
+
+        data_path = self.data_path
         
         ## Load KG
 
@@ -180,6 +181,7 @@ class KGWAS_Data:
         self.data = data
 
     def load_simulation_gwas(self, simulation_type, seed):
+        data_path = self.data_path
         print('Using simulation data....')
         small_cohort = 5000
         num_causal_hits = 20000
@@ -218,6 +220,7 @@ class KGWAS_Data:
         
         
     def load_full_gwas(self, pheno, seed):
+        data_path = self.data_path
         if pheno in scdrs_traits:
             print('Using scdrs traits...')
             self.pheno = pheno
@@ -243,6 +246,7 @@ class KGWAS_Data:
             self.sample_size = 387113
     
     def load_gwas_subsample(self, pheno, sample_size, seed):
+        data_path = self.data_path
         if pheno in ['body_BALDING1', 'cancer_BREAST', 'disease_ALLERGY_ECZEMA_DIAGNOSED', 'disease_HYPOTHYROIDISM_SELF_REP', 'other_MORNINGPERSON', 'pigment_SUNBURN']:
             binary = True
         else:
@@ -266,6 +270,7 @@ class KGWAS_Data:
         self.seed = seed
 
     def process_gwas_file(self, label = 'chi'):
+        data_path = self.data_path
         lr_uni = self.lr_uni
         ## LD scores
 

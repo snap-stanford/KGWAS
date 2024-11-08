@@ -1,1 +1,1 @@
-## Coming soon!
+## How to run GWAS - Coming soon!
