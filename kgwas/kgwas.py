@@ -14,7 +14,9 @@ import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 from torch_geometric.loader import NeighborLoader
 from .utils import print_sys, compute_metrics, save_dict, \
-                        load_dict, load_pretrained, save_model, evaluate_minibatch_clean, process_data
+                        load_dict, load_pretrained, save_model, \
+                        evaluate_minibatch_clean, process_data, \
+                        get_network_weight, generate_viz
 from .eval_utils import storey_ribshirani_integrate, get_clumps_gold_label, get_meta_clumps, \
                         get_mega_clump_query, get_curve, find_closest_x
 from .model import HeteroGNN
@@ -76,10 +78,6 @@ class KGWAS:
         
         self.model = load_pretrained(path, self.model)
         self.best_model = self.model
-    
-
-    def predict(self):
-        pass
 
 
     def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
@@ -109,9 +107,6 @@ class KGWAS:
 
         self.infer_loader = NeighborLoader(self.data.data, num_neighbors=[-1] * self.gnn_num_layers,
                                     input_nodes=infer_input_nodes, **eval_kwargs)
-        
-        
-        
         
         ## model training
         optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay = weight_decay)
@@ -207,4 +202,9 @@ class KGWAS:
             os.makedirs(self.data_path + '/model_pred/')
             os.makedirs(self.data_path + '/model_pred/new_experiments/')
         lr_uni_to_save.to_csv(self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
+        self.kgwas_res = lr_uni_to_save
 
+    def get_disease_critical_network(self):
+        df_network_weight = get_network_weight(self, self.data)
+        df_variant_interpretation, disease_critical_network = generate_viz(self, df_network_weight, self.data_path)
+        return df_network_weight, df_variant_interpretation, disease_critical_network

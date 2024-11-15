@@ -11,6 +11,7 @@ import torch
 from torch.nn import functional as F 
 from torch import nn
 from multiprocessing import Pool
+from tqdm import tqdm
 
 from .params import main_data_path, cohort_data_path, kinship_path, withdraw_path
 
@@ -430,3 +431,292 @@ def ldsc_regression_weights(ld, w_ld, N, M, hsq, intercept=None, ii=None):
     oc_w = 1.0 / w_ld
     w = np.multiply(het_w, oc_w)
     return w
+
+
+def get_network_weight(run, data):
+    model = run.best_model
+    model = model.to('cpu')
+    graph_data = data.data.to('cpu')
+
+    x_dict, edge_index_dict = graph_data.x_dict, graph_data.edge_index_dict
+    attention_all_layers = []
+    print('Retrieving weights...')
+
+    x_dict['SNP'] = model.snp_feat_mlp(x_dict['SNP'])
+    x_dict['Gene'] = model.gene_feat_mlp(x_dict['Gene'])
+    x_dict['CellularComponent'] = model.go_feat_mlp(x_dict['CellularComponent'])
+    x_dict['BiologicalProcess'] = model.go_feat_mlp(x_dict['BiologicalProcess'])
+    x_dict['MolecularFunction'] = model.go_feat_mlp(x_dict['MolecularFunction'])
+
+    for conv in model.convs:
+        x_dict = conv(x_dict, edge_index_dict, 
+                    return_attention_weights_dict = dict(zip(list(graph_data.edge_index_dict.keys()), 
+                                                            [True] * len(list(graph_data.edge_index_dict.keys())))),
+                    return_raw_attention_weights_dict = dict(zip(list(graph_data.edge_index_dict.keys()), 
+                                                            [True] * len(list(graph_data.edge_index_dict.keys())))),
+                    )
+        attention_layer = {i: j[1] for i,j in x_dict.items()}
+        attention_all_layers.append(attention_layer)
+        x_dict = {i: j[0] for i,j in x_dict.items()}
+
+    layer2rel2att = {
+        'l1': {},
+        'l2': {}
+    }
+
+    print('Aggregating across node types...')
+
+    for node_type in graph_data.x_dict.keys():
+        edge_type_node = [i for i,j in graph_data.edge_index_dict.items() if i[2] == node_type]
+        for idx, i in enumerate(attention_all_layers[0][node_type]):
+            layer2rel2att['l1'][edge_type_node[idx]] = np.vstack((i[0].detach().cpu().numpy(), i[1].detach().cpu().numpy().reshape(-1)))
+        for idx, i in enumerate(attention_all_layers[1][node_type]):
+            layer2rel2att['l2'][edge_type_node[idx]] = np.vstack((i[0].detach().cpu().numpy(), i[1].detach().cpu().numpy().reshape(-1)))
+    df_val_all = pd.DataFrame()
+    for rel, value in layer2rel2att['l1'].items():
+        df_val = pd.DataFrame(value).T.rename(columns = {0: 'h_idx', 1: 't_idx', 2: 'weight'})
+        df_val['h_type'] = rel[0] 
+        df_val['rel_type'] = rel[1] 
+        df_val['t_type'] = rel[2] 
+        df_val['layer'] = 'l1'
+        df_val_all = df_val_all.append(df_val)
+
+    for rel, value in layer2rel2att['l2'].items():
+        df_val = pd.DataFrame(value).T.rename(columns = {0: 'h_idx', 1: 't_idx', 2: 'weight'})
+        df_val['h_type'] = rel[0] 
+        df_val['rel_type'] = rel[1] 
+        df_val['t_type'] = rel[2] 
+        df_val['layer'] = 'l2'
+        df_val_all = df_val_all.append(df_val)
+
+    df_val_all = df_val_all.drop_duplicates(['h_idx', 't_idx', 'rel_type', 'layer'])
+    return df_val_all
+
+
+def generate_viz(run, df_network, data_path, variant_threshold = 5e-8, 
+                magma_path = None, magma_threshold = 0.05, program_threshold = 0.05,
+                K_neighbors = 3, num_cpus = 1):
+    gwas = run.kgwas_res
+    idx2id = run.data.idx2id
+    id2idx = run.data.id2idx
+    print('Start generating disease critical network...')
+
+    gene_sets = load_dict(os.path.join(data_path, '/kgwas_data/misc_data/gene_set_bp.pkl'))
+    with open(os.path.join(data_path, '/kgwas_data/misc_data/go2name.pkl'), 'rb') as f:
+        go2name = pickle.load(f)
+    
+    df_network = df_network[~df_network.rel_type.isin(['TSS', 'rev_TSS'])]
+
+    snp2genes = df_network[(df_network.t_type == 'SNP') 
+                       & (df_network.h_type == 'Gene')]
+    gene2gene = df_network[(df_network.t_type == 'Gene') 
+                           & (df_network.h_type == 'Gene')]
+    gene2go = df_network[(df_network.t_type == 'Gene') 
+                               & (df_network.h_type.isin(['BiologicalProcess']))]
+
+    hit_snps = gwas[gwas.P < 5e-8].SNP.values
+    hit_snps_idx = [id2idx['SNP'][i] for i in hit_snps]
+    
+    if magma_path is not None:
+        # use magma genes and GSEA programs
+        print('Using MAGMA genes to filter...')
+        gwas_gene = pd.read_csv(magma_path, sep = '\s+')
+        id2gene = dict(pd.read_csv(os.path.join(data_path, '/kgwas_data/misc_data/NCBI37.3.gene.loc'), sep = '\t', header = None)[[0,5]].values)
+        gwas_gene['GENE'] = gwas_gene['GENE'].apply(lambda x: id2gene[x])
+
+        import statsmodels.api as sm
+        p_values = gwas_gene['P']
+        corrected_p_values = sm.stats.multipletests(p_values, alpha=magma_threshold, method='bonferroni')[1]
+        gwas_gene['corrected_p_value'] = corrected_p_values
+        df_gene_hits = gwas_gene[gwas_gene['corrected_p_value'] < magma_threshold]
+        rnk = df_gene_hits[['GENE', 'ZSTAT']].set_index('GENE')
+        gene_hit_idx = [id2idx['Gene'][i] for i in df_gene_hits.GENE.values if i in id2idx['Gene']]
+
+        try:
+            gsea_results_BP = gp.prerank(rnk=rnk, gene_sets=gene_sets, 
+                                        outdir=None, permutation_num=100, 
+                                        min_size=2, max_size=1000, seed = 42)
+            gsea_results_BP = gsea_results_BP.res2d
+            go_hits = gsea_results_BP[gsea_results_BP['NOM p-val'] < program_threshold].Term.values
+            if len(go_hits) <= 5:
+                go_hits = gsea_results_BP.sort_values('NOM p-val')[:5].Term.values
+            go_hits_idx = [id2idx['BiologicalProcess'][x] for x in go_hits]
+            print('Using GSEA gene programs to filter...')
+        except:
+            print('No significant gene programs found...')
+            go_hits_idx = []
+    else:
+        # use all genes and gene programs
+        print('No filters... Using all genes and gene programs...')
+        gene_hit_idx = list(id2idx['Gene'].values())
+        go_hits_idx = list(id2idx['BiologicalProcess'].values())
+    
+
+    snp2genes_hit = snp2genes[snp2genes.t_idx.isin(hit_snps_idx) & snp2genes.h_idx.isin(gene_hit_idx)]
+    rel2mean = snp2genes_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = snp2genes_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    snp2genes_hit = snp2genes_hit.merge(rel2std)
+    snp2genes_hit = snp2genes_hit.merge(rel2mean)
+    snp2genes_hit['z_rel'] = (snp2genes_hit['weight'] - snp2genes_hit['rel_type_mean'])/snp2genes_hit['rel_type_std']
+    
+    v2g_hit = snp2genes_hit.groupby(['h_idx', 't_idx']).z_rel.max().reset_index().rename(columns={'z_rel': 'importance'})
+    v2g_hit_with_rel_type = pd.merge(v2g_hit, snp2genes_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
+    v2g_hit = v2g_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+    v2g_hit['rel_type'] = v2g_hit.rel_type.apply(lambda x: x[4:])
+    v2g_hit['Category'] = 'V2G'
+
+    v2g_hit['h_id'] = v2g_hit['h_idx'].apply(lambda x: idx2id['Gene'][x])
+    v2g_hit['t_id'] = v2g_hit['t_idx'].apply(lambda x: idx2id['SNP'][x])
+
+    gene2gene_hit = gene2gene[gene2gene.h_idx.isin(gene_hit_idx) & gene2gene.t_idx.isin(gene_hit_idx)]
+    rel2mean = gene2gene_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = gene2gene_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    gene2gene_hit = gene2gene_hit.merge(rel2std)
+    gene2gene_hit = gene2gene_hit.merge(rel2mean)
+    gene2gene_hit['z_rel'] = (gene2gene_hit['weight'] - gene2gene_hit['rel_type_mean'])/gene2gene_hit['rel_type_std']
+
+    g2g_hit = gene2gene_hit.groupby(['h_idx', 't_idx']).z_rel.max().reset_index().rename(columns={'z_rel': 'importance'})
+    g2g_hit_with_rel_type = pd.merge(g2g_hit, gene2gene_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
+    g2g_hit = g2g_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+    g2g_hit['rel_type'] = g2g_hit.rel_type.apply(lambda x: x.split('-')[1])
+    g2g_hit['Category'] = 'G2G'
+
+    g2g_hit['h_id'] = g2g_hit['h_idx'].apply(lambda x: idx2id['Gene'][x])
+    g2g_hit['t_id'] = g2g_hit['t_idx'].apply(lambda x: idx2id['Gene'][x])
+
+    gene2program_hit = gene2go[gene2go.t_idx.isin(gene_hit_idx) & gene2go.h_idx.isin(go_hits_idx)]
+    rel2mean = gene2program_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = gene2program_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    gene2program_hit = gene2program_hit.merge(rel2std)
+    gene2program_hit = gene2program_hit.merge(rel2mean)
+    gene2program_hit['z_rel'] = (gene2program_hit['weight'] - gene2program_hit['rel_type_mean'])/gene2program_hit['rel_type_std']
+
+    g2p_hit = gene2program_hit.groupby(['h_idx', 't_idx']).z_rel.max().reset_index().rename(columns={'z_rel': 'importance'})
+
+    g2p_hit_with_rel_type = pd.merge(g2p_hit, gene2program_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
+    g2p_hit = g2p_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+    g2p_hit['rel_type'] = g2p_hit.rel_type.apply(lambda x: x.split('-')[1])
+    g2p_hit['Category'] = 'G2P'
+    g2p_hit['h_id'] = g2p_hit['h_idx'].apply(lambda x: idx2id['BiologicalProcess'][x])
+    g2p_hit['t_id'] = g2p_hit['t_idx'].apply(lambda x: idx2id['Gene'][x])
+    g2p_hit['h_id'] = g2p_hit.h_id.apply(lambda x: go2name[x].capitalize() if x in go2name else x)
+    disease_critical_network = pd.concat((v2g_hit, g2g_hit, g2p_hit)).reset_index(drop = True)
+
+    print('Disease critical network finished generating...')
+    print('Generating variant interpretation networks...')
+
+    #### get for variant interpretation -> since we are looking at top K neighbors, we don't filter
+    
+    # V2G
+    rel2mean = snp2genes_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = snp2genes_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    snp2genes = snp2genes.merge(rel2std)
+    snp2genes = snp2genes.merge(rel2mean)
+    snp2genes['z_rel'] = (snp2genes['weight'] - snp2genes['rel_type_mean'])/snp2genes['rel_type_std']
+    snp2genes = snp2genes.rename(columns={'z_rel': 'importance'})
+    v2g = snp2genes.groupby(['h_idx', 't_idx']).importance.max().reset_index()
+    v2g_with_rel_type = pd.merge(v2g, snp2genes, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'importance'], how='left')
+    v2g = v2g_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+
+    v2g['h_id'] = v2g['h_idx'].apply(lambda x: idx2id['Gene'][x])
+    v2g['t_id'] = v2g['t_idx'].apply(lambda x: idx2id['SNP'][x])
+
+    ## G2G
+
+    rel2mean = gene2gene_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = gene2gene_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    gene2gene = gene2gene.merge(rel2std)
+    gene2gene = gene2gene.merge(rel2mean)
+    gene2gene['z_rel'] = (gene2gene['weight'] - gene2gene['rel_type_mean'])/gene2gene['rel_type_std']
+    gene2gene = gene2gene.rename(columns={'z_rel': 'importance'})
+
+    g2g = gene2gene.groupby(['h_idx', 't_idx']).importance.max().reset_index()
+    g2g_with_rel_type = pd.merge(g2g, gene2gene, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'importance'], how='left')
+    g2g = g2g_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+
+    g2g['h_id'] = g2g['h_idx'].apply(lambda x: idx2id['Gene'][x])
+    g2g['t_id'] = g2g['t_idx'].apply(lambda x: idx2id['Gene'][x])
+    g2g = g2g[g2g.h_idx != g2g.t_idx]
+
+    ## G2P
+
+    rel2mean = gene2program_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = gene2program_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    gene2go = gene2go.merge(rel2std)
+    gene2go = gene2go.merge(rel2mean)
+    gene2go['z_rel'] = (gene2go['weight'] - gene2go['rel_type_mean'])/gene2go['rel_type_std']
+    gene2go = gene2go.rename(columns={'z_rel': 'importance'})
+
+    g2p = gene2go.groupby(['h_idx', 't_idx']).importance.max().reset_index()
+    g2p_with_rel_type = pd.merge(g2p, gene2go, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'importance'], how='left')
+    g2p = g2p_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+
+    g2p['h_id'] = g2p['h_idx'].apply(lambda x: go2name[idx2id['BiologicalProcess'][x]].capitalize() if idx2id['BiologicalProcess'][x] in go2name else idx2id['BiologicalProcess'][x])
+    g2p['t_id'] = g2p['t_idx'].apply(lambda x: idx2id['Gene'][x])
+
+
+    ## G2V
+
+    gene2snp = df_network[(df_network.h_type == 'SNP') 
+                       & (df_network.t_type == 'Gene')]
+
+    gene2snp_hit = gene2snp[gene2snp.h_idx.isin(hit_snps_idx) & gene2snp.t_idx.isin(gene_hit_idx)]
+
+    rel2mean = gene2snp_hit.groupby('rel_type').weight.mean().reset_index().rename(columns = {'weight': 'rel_type_mean'})
+    rel2std = gene2snp_hit.groupby('rel_type').weight.agg(np.std).reset_index().rename(columns = {'weight': 'rel_type_std'})
+
+    gene2snp = gene2snp.merge(rel2std)
+    gene2snp = gene2snp.merge(rel2mean)
+    gene2snp['z_rel'] = (gene2snp['weight'] - gene2snp['rel_type_mean'])/gene2snp['rel_type_std']
+    gene2snp = gene2snp.rename(columns={'z_rel': 'importance'})
+
+    g2v = gene2snp.groupby(['h_idx', 't_idx']).importance.max().reset_index()
+    g2v_with_rel_type = pd.merge(g2v, gene2snp, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'importance'], how='left')
+    g2v = g2v_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
+
+    g2v['h_id'] = g2v['h_idx'].apply(lambda x: idx2id['SNP'][x])
+    g2v['t_id'] = g2v['t_idx'].apply(lambda x: idx2id['Gene'][x])
+
+
+    def get_local_interpretation(query_snp):
+        try:
+            snp2gene_around_snp = v2g[v2g.t_idx == id2idx['SNP'][query_snp]]
+            snp2gene_around_snp = snp2gene_around_snp.sort_values('importance')[::-1]
+            gene_hit = snp2gene_around_snp.iloc[:K_neighbors]
+            gene_hit['rel_type'] = gene_hit.rel_type.apply(lambda x: x[4:])
+
+            g2g_focal = pd.DataFrame()
+            for gene in gene_hit.h_id.values:
+                g2g_focal = g2g_focal.append(g2g[g2g.t_id == gene].sort_values('importance')[::-1].iloc[:K_neighbors])
+            g2g_focal['rel_type'] = g2g_focal.rel_type.apply(lambda x: x.split('-')[1])
+
+            g2p_focal = pd.DataFrame()
+            for gene in gene_hit.h_id.values:
+                g2p_focal = g2p_focal.append(g2p[g2p.t_id == gene].sort_values('importance')[::-1].iloc[:K_neighbors])
+
+            g2p_focal['rel_type'] = g2p_focal.rel_type.apply(lambda x: x.split('-')[1])
+
+            g2v_focal = pd.DataFrame()
+            for gene in gene_hit.h_id.values:
+                g2v_focal = g2v_focal.append(g2v[g2v.t_id == gene].sort_values('importance')[::-1].iloc[:K_neighbors])
+            local_neighborhood_around_snp = pd.concat((gene_hit, g2g_focal, g2p_focal, g2v_focal))
+            local_neighborhood_around_snp['QUERY_SNP'] = query_snp
+            return local_neighborhood_around_snp
+        except:
+            return None
+    
+    print('Number of hit snps: ', len(hit_snps))
+    with Pool(num_cpus) as p:
+        res = list(tqdm(p.imap(get_local_interpretation, hit_snps), total=len(hit_snps)))
+    try:
+        df_variant_interpretation = pd.concat([i for i in res if i is not None])
+    except:
+        df_variant_interpretation = pd.DataFrame()
+
+    return df_variant_interpretation, disease_critical_network
