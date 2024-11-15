@@ -12,7 +12,7 @@ from .utils import ldsc_regression_weights, load_dict
 from .params import scdrs_traits
 
 class KGWAS_Data:
-    def __init__(self, data_path = './data'):
+    def __init__(self, data_path = './data/'):
         self.data_path = data_path
         if not os.path.exists(data_path):
             os.makedirs(data_path)
@@ -28,9 +28,9 @@ class KGWAS_Data:
         ## Load KG
 
         print('--loading KG---')
-        idx2id = load_dict(data_path + 'cell_kg/network/node_idx2id.pkl')
-        edge_index_all = load_dict(data_path + 'cell_kg/network/edge_index.pkl')
-        id2idx = load_dict(data_path + 'cell_kg/network/node_id2idx.pkl')  
+        idx2id = load_dict(os.path.join(data_path, 'cell_kg/network/node_idx2id.pkl'))
+        edge_index_all = load_dict(os.path.join(data_path, 'cell_kg/network/edge_index.pkl'))
+        id2idx = load_dict(os.path.join(data_path, 'cell_kg/network/node_id2idx.pkl'))
         self.id2idx = id2idx
         self.idx2id = idx2id
         
@@ -417,3 +417,16 @@ class KGWAS_Data:
         self.data.all_mask = self.all_ids
         #data = data.to(args.device)
 
+    def get_pheno_list(self):
+        return {"large_cohort": scdrs_traits, 
+        "21_indep_traits": ['body_BALDING1',
+           'disease_ALLERGY_ECZEMA_DIAGNOSED',
+           'disease_HYPOTHYROIDISM_SELF_REP', 'pigment_SUNBURN', 
+            '21001', '50', '30080', '30070', '30010', '30000', 
+            'biochemistry_AlkalinePhosphatase',
+           'biochemistry_AspartateAminotransferase',
+           'biochemistry_Cholesterol', 'biochemistry_Creatinine',
+           'biochemistry_IGF1', 'biochemistry_Phosphate',
+           'biochemistry_Testosterone_Male', 'biochemistry_TotalBilirubin',
+           'biochemistry_TotalProtein', 'biochemistry_VitaminD',
+           'bmd_HEEL_TSCOREz']}

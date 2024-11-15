@@ -83,8 +83,8 @@ class KGWAS:
 
 
     def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
-                    weight_decay = 5e-4, epoch = 10, save_base_model = False, 
-                    save_name = None, downstream_eval = False, data_to_cuda = False):
+                    weight_decay = 5e-4, epoch = 10, save_best_model = False, 
+                    save_name = None, data_to_cuda = False):
         if save_name is None:
             save_name = self.exp_name
         print_sys('Creating data loader...')
@@ -174,7 +174,7 @@ class KGWAS:
                 best_epoch = epoch
 
 
-        if save_base_model:
+        if save_best_model:
             save_model_path = self.data_path + '/model/'
             print_sys('Saving models to ' + os.path.join(save_model_path, save_name))
             save_model(self.best_model, self.config, os.path.join(save_model_path, save_name))
