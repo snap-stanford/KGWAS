@@ -81,8 +81,9 @@ class KGWAS:
 
 
     def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
-                    weight_decay = 5e-4, epoch = 10, save_best_model = False, 
+                    weight_decay = 5e-4, epoch = 10, save_best_model = True, 
                     save_name = None, data_to_cuda = False):
+        total_epoch = epoch
         if save_name is None:
             save_name = self.exp_name
         print_sys('Creating data loader...')
@@ -119,10 +120,10 @@ class KGWAS:
 
         self.best_model = deepcopy(self.model).to(self.device)
         print_sys('Start Training...')
-        for epoch in tqdm(range(epoch)):
+        for epoch in range(total_epoch):
             self.model.train()
 
-            for step, batch in enumerate(tqdm(self.train_loader)):
+            for step, batch in enumerate(tqdm(self.train_loader, desc=f"Training Progress Epoch {epoch+1}/{total_epoch}", total=len(self.train_loader))):
                 optimizer.zero_grad()
                 if data_to_cuda:
                     pass
@@ -202,6 +203,7 @@ class KGWAS:
             os.makedirs(self.data_path + '/model_pred/')
             os.makedirs(self.data_path + '/model_pred/new_experiments/')
         lr_uni_to_save.to_csv(self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
+        print('KGWAS prediction and p-values saved to ' + self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv')
         self.kgwas_res = lr_uni_to_save
 
     def get_disease_critical_network(self):

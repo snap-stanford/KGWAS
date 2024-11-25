@@ -7,15 +7,92 @@ import torch
 import numpy as np
 import pickle
 import os
+import tarfile
+import urllib.request
+import shutil
+from tqdm import tqdm
 
 from .utils import ldsc_regression_weights, load_dict
 from .params import scdrs_traits
 
 class KGWAS_Data:
-    def __init__(self, data_path = './data/'):
+    def __init__(self, data_path='./data/'):
         self.data_path = data_path
+        
+        # Ensure the data path exists
         if not os.path.exists(data_path):
             os.makedirs(data_path)
+        
+        # Check if relevant data exists in the data_path
+        required_files = [
+            'cell_kg/network/node_idx2id.pkl',
+            'cell_kg/network/edge_index.pkl',
+            'cell_kg/network/node_id2idx.pkl',
+            'cell_kg/node_emb/variant_emb/enformer_feat.pkl',
+            'cell_kg/node_emb/gene_emb/esm_feat.pkl',
+            'ld_score/filter_genotyped_ldscores.csv',
+            'ld_score/ldscores_from_data.csv',
+            'ld_score/ukb_white_ld_10MB_no_hla.pkl',
+            'ld_score/ukb_white_ld_10MB.pkl',
+            'misc_data/ukb_white_with_cm.bim',
+        ]
+        missing_files = [f for f in required_files if not os.path.exists(os.path.join(data_path, f))]
+        
+        if missing_files:
+            print("Relevant data not found in the data_path. Downloading and extracting data...")
+            url = "https://dataverse.harvard.edu/api/access/datafile/10730299"
+            file_name = 'kgwas_core_data'
+            self._download_and_extract_data(url, file_name)
+        else:
+            print("All required data files are present.")
+
+    def download_all_data(self):
+        url = "https://dataverse.harvard.edu/api/access/datafile/XXXX"
+        file_name = 'kgwas_data'
+        self._download_and_extract_data(url, file_name)
+
+    def _download_and_extract_data(self, url, file_name):
+        # URL of the data file
+        tar_file_path = os.path.join(self.data_path, file_name + '.tar.gz')
+
+        # Download the file with a progress bar
+        print(f"Downloading {file_name}.tar.gz...")
+        self._download_with_progress(url, tar_file_path)
+        print("\nDownload complete.")
+
+        # Extract the tar.gz file
+        print("Extracting files...")
+        with tarfile.open(tar_file_path, 'r:gz') as tar:
+            tar.extractall(self.data_path)
+        print("Extraction complete.")
+
+        # Clean up the tar.gz file
+        os.remove(tar_file_path)
+
+        # Ensure all files are moved into the data_path directory
+        extracted_dir = os.path.join(self.data_path, file_name)
+        if os.path.exists(extracted_dir):
+            for item in os.listdir(extracted_dir):
+                shutil.move(os.path.join(extracted_dir, item), self.data_path)
+            os.rmdir(extracted_dir)
+
+    def _download_with_progress(self, url, file_path):
+        """Download a file with a progress bar."""
+        request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(request)
+        total_size = int(response.getheader('Content-Length').strip())
+        block_size = 1024  # 1 KB
+
+        with open(file_path, 'wb') as file, tqdm(
+            total=total_size, unit='B', unit_scale=True, desc="Downloading"
+        ) as pbar:
+            while True:
+                buffer = response.read(block_size)
+                if not buffer:
+                    break
+                file.write(buffer)
+                pbar.update(len(buffer))
+
 
     def load_kg(self, snp_init_emb = 'enformer', 
                     go_init_emb = 'random',
@@ -201,8 +278,28 @@ class KGWAS_Data:
         self.seed = seed
         self.pheno = 'simulation'
     
-    def load_external_gwas(self, path, seed = 42):
-        lr_uni = pd.read_csv(path)
+    def load_external_gwas(self, path = None, seed = 42, example_file = False):
+        if example_file:
+            print('Loading example GWAS file...')
+            url = "https://dataverse.harvard.edu/api/access/datafile/10730346"
+            example_file_path = os.path.join(self.data_path, 'biochemistry_Creatinine_fastgwa_full_10000_1.fastGWA')
+
+            # Check if the example file is already downloaded
+            if not os.path.exists(example_file_path):
+                print('Example file not found locally. Downloading...')
+                self._download_with_progress(url, example_file_path)
+                print('Example file downloaded successfully.')
+            else:
+                print('Example file already exists locally.')
+
+            path = example_file_path
+
+        if path is None:
+            raise ValueError("A valid path must be provided or example_file must be set to True.")
+
+        print(f'Loading GWAS file from {path}...')
+            
+        lr_uni = pd.read_csv(path, sep=None, engine='python')
         if 'CHR' not in lr_uni.columns.values:
             raise ValueError('CHR chromosome not in the file!')
         if 'SNP' not in lr_uni.columns.values:

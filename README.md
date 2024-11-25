@@ -7,16 +7,11 @@ Here, we introduce KGWAS, a novel geometric deep learning method that leverages 
 
 ## Installation
 
-Install Pytorch Geometric follow [this instruction](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) and then do:
+Install Pytorch Geometric by following [this instruction](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) and then do:
 
 ```bash
 pip install KGWAS
 ```
-
-## Data download
-To ensure fast user experience, we provide a default fast mode of KGWAS, which uses Enformer embedding for variant feature and ESM embedding for gene features (instead of the baselineLD for variant and PoPS for gene since they are large files). For the fast mode, you do not need to download any data, the KGWAS API will automatically download the relevant files. This mode can be used to apply KGWAS to your own GWAS sumstats. 
-
-If you want to (1) use the full mode of KGWAS (i.e. larger node embeddings) or (2) access the null/causal simulations or (3) access the 21 subsampled GWAS sumstats across various sample sizes or (4) analyze the KGWAS sumstats for subsampled data or (5) analyze the KGWAS sumstats for all UKBB ICD10 diseases, please download everything from [here](). Note that this file is large (around 40GB) and may take a while to download. 
 
 ## Core KGWAS API Usage
 
@@ -36,16 +31,19 @@ run.initialize_model()
 run.train(epoch = 10) ## train the model
 ```
 
+## Data download
+To ensure fast user experience, we provide a default fast mode of KGWAS, which uses Enformer embedding for variant feature and ESM embedding for gene features (instead of the baselineLD for variant and PoPS for gene since they are large files). For the fast mode, you do not need to download any data, the KGWAS API will automatically download the relevant files. This mode can be used to apply KGWAS to your own GWAS sumstats. 
 
-## Tutorial [[Coming soon!]]
+If you want to (1) use the full mode of KGWAS (i.e. larger node embeddings) or (2) access the null/causal simulations or (3) access the 21 subsampled GWAS sumstats across various sample sizes or (4) analyze the KGWAS sumstats for subsampled data or (5) analyze the KGWAS sumstats for all UKBB ICD10 diseases, please use `data.download_all_data()`. Note that this file is large (around 70GB) and may take a while to download. 
+
+## Tutorial
 
 | Notebook | Try on Colab | Description                                             |
 ----------|--------------|---------------------------------------------------------|
-| [Introduction](demo/introduction.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on key KGWAS API and functionalities. |
-| [Apply KGWAS to your own sumstats](demo/kgwas_use_your_own_gwas.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on applying KGWAS to your own GWAS summary statistics. |
-| [Use alternative variant/gene/program embedding](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on using alternative variant/gene/program embedding (e.g. foundation model embedding). |
-| [Simulation analysis](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on the subsampling analysis. |
-| [Subsampling analysis](demo/kgwas_subsampling.ipynb) | [<img align="center" src="https://colab.research.google.com/assets/colab-badge.svg" />]()   | Tutorial on the subsampling analysis. |
+| [Introduction & Apply KGWAS to your own sumstats](demo/kgwas_101.ipynb) | TODO | Tutorial on key KGWAS API and functionalities. |
+| [Use alternative variant/gene/program embedding](demo/kgwas_embedding.ipynb) | TODO   | Tutorial on using alternative variant/gene/program embedding. |
+| [Simulation analysis](demo/kgwas_simulation.ipynb) | TODO  | Tutorial on the simulation analysis. |
+| [Subsampling analysis](demo/kgwas_subsampling.ipynb) | TODO | Tutorial on the subsampling analysis. |
 
 
 ## Extended API Usage
