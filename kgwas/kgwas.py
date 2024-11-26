@@ -5,6 +5,7 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 import pandas as pd
 import numpy as np
 import pickle
+import subprocess
 
 import torch
 import torch.nn.functional as F
@@ -78,7 +79,8 @@ class KGWAS:
         
         self.model = load_pretrained(path, self.model)
         self.best_model = self.model
-        self.kgwas_res = pd.read_csv(os.path.join(path, path.split('/')[-1] + '_pred.csv'), sep = None, engine = 'python')
+        self.kgwas_res = pd.read_csv(os.path.join(path, 'pred.csv'), sep = None, engine = 'python')
+        self.save_name = path.split('/')[-1]
 
     def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
                     weight_decay = 5e-4, epoch = 10, save_best_model = True, 
@@ -86,6 +88,7 @@ class KGWAS:
         total_epoch = epoch
         if save_name is None:
             save_name = self.exp_name
+        self.save_name = save_name
         print_sys('Creating data loader...')
         kwargs = {'batch_size': batch_size, 'num_workers': num_workers, 'drop_last': True}
         eval_kwargs = {'batch_size': 512, 'num_workers': num_workers, 'drop_last': False}
@@ -205,8 +208,62 @@ class KGWAS:
         lr_uni_to_save.to_csv(self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
         print('KGWAS prediction and p-values saved to ' + self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv')
         if save_best_model:
-            lr_uni_to_save.to_csv(self.data_path + '/model/' + save_name + '_pred.csv', index = False, sep = '\t')
+            lr_uni_to_save.to_csv(self.data_path + '/model/' + save_name + '/pred.csv', index = False, sep = '\t')
         self.kgwas_res = lr_uni_to_save
+
+    def run_magma(self, path_to_magma, bfile):
+        if 'N' in self.kgwas_res.columns:
+            n_value = self.kgwas_res['N'].values[0]
+        else:
+            n_value = input("Please provide the sample size for the GWAS analysis.")
+        
+        url = "https://dataverse.harvard.edu/api/access/datafile/10731670"
+        annot_file_path = os.path.join(self.data_path, 'gene_annotation.genes.annot')
+
+        # Check if the example file is already downloaded
+        if not os.path.exists(annot_file_path):
+            print('Annotation file not found locally. Downloading...')
+            self.data._download_with_progress(url, annot_file_path)
+            print('Annotation file downloaded successfully.')
+        else:
+            print('Annotation file already exists locally.')
+
+        gene_annot = annot_file_path
+
+        magma_path = self.data_path + '/model_pred/new_experiments/' + self.save_name + '_magma_format.csv'
+        self.kgwas_res[['ID', 'KGWAS_P']].rename(columns = {'ID': 'SNP', 'KGWAS_P': 'P'}).to_csv(magma_path, index = False, sep = '\t')
+
+        # Construct the MAGMA command
+        command = [
+            path_to_magma,
+            "--bfile", bfile,
+            "--gene-annot", gene_annot,
+            "--pval", magma_path, f"N={n_value}",
+            "--out", self.data_path + '/model_pred/new_experiments/' + self.save_name + '_magma_out'
+        ]
+        
+        try:
+            # Run the command with real-time output
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            print("Running MAGMA...")
+
+            # Stream stdout line by line
+            for line in process.stdout:
+                print(line, end="")  # Print each line as it's received
+
+            # Wait for the process to complete and capture stderr
+            stderr = process.communicate()[1]
+
+            if process.returncode == 0:
+                print("MAGMA command executed successfully.")
+            else:
+                print("MAGMA encountered an error.")
+                print("Error message:", stderr)
+        except FileNotFoundError:
+            print("MAGMA executable not found. Ensure it is in the specified path.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
 
     def get_disease_critical_network(self, variant_threshold = 5e-8, 
                 magma_path = None, magma_threshold = 0.05, program_threshold = 0.05,
