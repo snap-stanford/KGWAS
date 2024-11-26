@@ -78,7 +78,7 @@ class KGWAS:
         
         self.model = load_pretrained(path, self.model)
         self.best_model = self.model
-
+        self.kgwas_res = pd.read_csv(os.path.join(path, path.split('/')[-1] + '_pred.csv'), sep = None, engine = 'python')
 
     def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
                     weight_decay = 5e-4, epoch = 10, save_best_model = True, 
@@ -204,9 +204,13 @@ class KGWAS:
             os.makedirs(self.data_path + '/model_pred/new_experiments/')
         lr_uni_to_save.to_csv(self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv', index = False, sep = '\t')
         print('KGWAS prediction and p-values saved to ' + self.data_path + '/model_pred/new_experiments/' + save_name + '_pred.csv')
+        if save_best_model:
+            lr_uni_to_save.to_csv(self.data_path + '/model/' + save_name + '_pred.csv', index = False, sep = '\t')
         self.kgwas_res = lr_uni_to_save
 
-    def get_disease_critical_network(self):
+    def get_disease_critical_network(self, variant_threshold = 5e-8, 
+                magma_path = None, magma_threshold = 0.05, program_threshold = 0.05,
+                K_neighbors = 3, num_cpus = 1):
         df_network_weight = get_network_weight(self, self.data)
-        df_variant_interpretation, disease_critical_network = generate_viz(self, df_network_weight, self.data_path)
+        df_variant_interpretation, disease_critical_network = generate_viz(self, df_network_weight, self.data_path, variant_threshold, magma_path, magma_threshold, program_threshold, K_neighbors, num_cpus)
         return df_network_weight, df_variant_interpretation, disease_critical_network

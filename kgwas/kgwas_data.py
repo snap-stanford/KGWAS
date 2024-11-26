@@ -11,6 +11,7 @@ import tarfile
 import urllib.request
 import shutil
 from tqdm import tqdm
+import subprocess
 
 from .utils import ldsc_regression_weights, load_dict
 from .params import scdrs_traits
@@ -40,7 +41,7 @@ class KGWAS_Data:
         
         if missing_files:
             print("Relevant data not found in the data_path. Downloading and extracting data...")
-            url = "https://dataverse.harvard.edu/api/access/datafile/10730299"
+            url = "https://dataverse.harvard.edu/api/access/datafile/10731230"
             file_name = 'kgwas_core_data'
             self._download_and_extract_data(url, file_name)
         else:
@@ -51,14 +52,26 @@ class KGWAS_Data:
         file_name = 'kgwas_data'
         self._download_and_extract_data(url, file_name)
 
-    def _download_and_extract_data(self, url, file_name):
-        # URL of the data file
-        tar_file_path = os.path.join(self.data_path, file_name + '.tar.gz')
+    def _merge_with_rsync(self, src, dst):
+        """Merge directories using rsync."""
+        try:
+            subprocess.run(
+                ["rsync", "-a", "--ignore-existing", src + "/", dst + "/"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Error during rsync: {e.stderr.decode()}")
 
-        # Download the file with a progress bar
+    def _download_and_extract_data(self, url, file_name):
+        """Download, extract, and merge directories using rsync."""
+        tar_file_path = os.path.join(self.data_path, f"{file_name}.tar.gz")
+
+        # Download the file
         print(f"Downloading {file_name}.tar.gz...")
         self._download_with_progress(url, tar_file_path)
-        print("\nDownload complete.")
+        print("Download complete.")
 
         # Extract the tar.gz file
         print("Extracting files...")
@@ -69,12 +82,14 @@ class KGWAS_Data:
         # Clean up the tar.gz file
         os.remove(tar_file_path)
 
-        # Ensure all files are moved into the data_path directory
+        # Merge extracted contents into the data_path directory
         extracted_dir = os.path.join(self.data_path, file_name)
         if os.path.exists(extracted_dir):
-            for item in os.listdir(extracted_dir):
-                shutil.move(os.path.join(extracted_dir, item), self.data_path)
-            os.rmdir(extracted_dir)
+            print(f"Merging extracted directory '{extracted_dir}' into '{self.data_path}'...")
+            self._merge_with_rsync(extracted_dir, self.data_path)
+
+            # Remove the now-empty extracted directory
+            shutil.rmtree(extracted_dir)
 
     def _download_with_progress(self, url, file_path):
         """Download a file with a progress bar."""
@@ -123,8 +138,8 @@ class KGWAS_Data:
         elif snp_init_emb == 'kg':
             print('--using KG SNP embedding--')
 
-            id2idx_kg = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl')
-            kg_emb = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl')
+            id2idx_kg = load_dict(os.path.join(data_path,  'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl'))
+            kg_emb = load_dict(os.path.join(data_path,  'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl'))
             node_map = idx2id['SNP']
             data['SNP'].x = torch.vstack([torch.tensor(kg_emb[id2idx_kg[node_map[i]]]) if node_map[i] in id2idx_kg \
                                               else torch.rand(50, requires_grad = False) for i in range(len(node_map))])
@@ -133,7 +148,7 @@ class KGWAS_Data:
         elif snp_init_emb == 'cadd':
             print('--using CADD SNP embedding--')
 
-            df_variant = pd.read_csv(data_path + 'cell_kg/node_emb/variant_emb/cadd_feat.csv')
+            df_variant = pd.read_csv(os.path.join(data_path, 'cell_kg/node_emb/variant_emb/cadd_feat.csv'))
             df_variant = df_variant.set_index('Unnamed: 0')
             variant_feat = df_variant.values
             node_map = idx2id['SNP']
@@ -146,7 +161,7 @@ class KGWAS_Data:
         elif snp_init_emb == 'baselineLD': 
             print('--using baselineLD SNP embedding--')
             node_map = idx2id['SNP']
-            rs2idx_feat = load_dict(data_path + 'cell_kg/node_emb/variant_emb/baselineld_feat.pkl')
+            rs2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/variant_emb/baselineld_feat.pkl'))
             data['SNP'].x = torch.vstack([torch.tensor(rs2idx_feat[node_map[i]]) if node_map[i] in rs2idx_feat \
                                                   else torch.rand(70, requires_grad = False) for i in range(len(node_map))]).float()
             snp_init_dim_size = 70
@@ -154,7 +169,7 @@ class KGWAS_Data:
         elif snp_init_emb == 'SLDSC': 
             print('--using SLDSC SNP embedding--')
             node_map = idx2id['SNP']
-            rs2idx_feat = load_dict(data_path + 'cell_kg/node_emb/variant_emb/sldsc_feat.pkl')
+            rs2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/variant_emb/sldsc_feat.pkl'))
             data['SNP'].x = torch.vstack([torch.tensor(rs2idx_feat[node_map[i]]) if node_map[i] in rs2idx_feat \
                                                   else torch.rand(165, requires_grad = False) for i in range(len(node_map))]).float()
             snp_init_dim_size = 165 
@@ -162,7 +177,7 @@ class KGWAS_Data:
         elif snp_init_emb == 'enformer':
             print('--using enformer SNP embedding--')
             node_map = idx2id['SNP']
-            rs2idx_feat = load_dict(data_path + 'cell_kg/node_emb/variant_emb/enformer_feat.pkl')
+            rs2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/variant_emb/enformer_feat.pkl'))
             data['SNP'].x = torch.vstack([torch.tensor(rs2idx_feat[node_map[i]]) if node_map[i] in rs2idx_feat \
                                                   else torch.rand(20, requires_grad = False) for i in range(len(node_map))]).float()
             snp_init_dim_size = 20 
@@ -177,8 +192,8 @@ class KGWAS_Data:
         elif go_init_emb == 'kg':
             print('--using KG go embedding--')
 
-            id2idx_kg = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl')
-            kg_emb = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl')
+            id2idx_kg = load_dict(os.path.join(data_path, 'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl'))
+            kg_emb = load_dict(os.path.join(data_path, 'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl'))
 
             for rel in ['CellularComponent', 'BiologicalProcess', 'MolecularFunction']:
                 node_map = idx2id[rel]
@@ -189,7 +204,7 @@ class KGWAS_Data:
         elif go_init_emb == 'biogpt':
             print('--using biogpt go embedding--')
 
-            go2idx_feat = load_dict(data_path + 'cell_kg/node_emb/program_emb/biogpt_feat.pkl')
+            go2idx_feat = load_dict(os.path.join(data_path,  'cell_kg/node_emb/program_emb/biogpt_feat.pkl'))
             for rel in ['CellularComponent', 'BiologicalProcess', 'MolecularFunction']:
                 node_map = idx2id[rel]
                 data[rel].x = torch.vstack([torch.tensor(go2idx_feat[node_map[i]]) if node_map[i] in go2idx_feat \
@@ -204,8 +219,8 @@ class KGWAS_Data:
             gene_init_dim_size = 128
         elif gene_init_emb == 'kg':
             print('--using KG gene embedding--')
-            id2idx_kg = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl')
-            kg_emb = load_dict(data_path + 'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl')
+            id2idx_kg = load_dict(os.path.join(data_path, 'cell_kg/node_emb/transe_emb/transe_emb_id2idx_kg.pkl'))
+            kg_emb = load_dict(os.path.join(data_path, 'cell_kg/node_emb/transe_emb/transe_emb_inverse_triplets.pkl'))
             node_map = idx2id['Gene']
             data['Gene'].x = torch.vstack([torch.tensor(kg_emb[id2idx_kg[node_map[i]]]) if node_map[i] in id2idx_kg \
                                           else torch.rand(50, requires_grad = False) for i in range(len(node_map))])
@@ -214,7 +229,7 @@ class KGWAS_Data:
         elif gene_init_emb == 'esm':
             print('--using ESM gene embedding--')
 
-            gene2idx_feat = load_dict(data_path + 'cell_kg/node_emb/gene_emb/esm_feat.pkl')
+            gene2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/gene_emb/esm_feat.pkl'))
             node_map = idx2id['Gene']
             data['Gene'].x = torch.vstack([torch.tensor(gene2idx_feat[node_map[i]]) if node_map[i] in gene2idx_feat \
                                               else torch.rand(5120, requires_grad = False) for i in range(len(node_map))]).float()
@@ -222,7 +237,7 @@ class KGWAS_Data:
         elif gene_init_emb == 'pops':
             print('--using PoPs expression+PPI+pathways gene embedding--')
 
-            gene2idx_feat = load_dict(data_path + 'cell_kg/node_emb/gene_emb/pops_feat.pkl')
+            gene2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/gene_emb/pops_feat.pkl'))
             node_map = idx2id['Gene']
             data['Gene'].x = torch.vstack([torch.tensor(gene2idx_feat[node_map[i]]) if node_map[i] in gene2idx_feat \
                                               else torch.rand(57742, requires_grad = False) for i in range(len(node_map))]).float()
@@ -230,7 +245,7 @@ class KGWAS_Data:
         elif gene_init_emb == 'pops_expression':
             print('--using PoPs expression only gene embedding--')
 
-            gene2idx_feat = load_dict(data_path + 'cell_kg/node_emb/gene_emb/pops_expression_feat.pkl')
+            gene2idx_feat = load_dict(os.path.join(data_path, 'cell_kg/node_emb/gene_emb/pops_expression_feat.pkl'))
             node_map = idx2id['Gene']
             data['Gene'].x = torch.vstack([torch.tensor(gene2idx_feat[node_map[i]]) if node_map[i] in gene2idx_feat \
                                               else torch.rand(40546, requires_grad = False) for i in range(len(node_map))]).float()
@@ -265,11 +280,11 @@ class KGWAS_Data:
         heritability = 0.3
         self.sample_size = small_cohort
         if simulation_type == 'causal_link':
-            lr_uni = pd.read_csv(data_path + 'simulation_gwas/causal_link_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_graph_funct_v2_ggi.fastGWA', sep = '\t')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_link_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_graph_funct_v2_ggi.fastGWA', sep = '\t'))
         elif simulation_type == 'causal':
-            lr_uni = pd.read_csv(data_path + 'simulation_gwas/causal_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '_graph_funct_v2.fastGWA', sep = '\t')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '_graph_funct_v2.fastGWA', sep = '\t'))
         elif simulation_type == 'null':
-            lr_uni = pd.read_csv(data_path + 'simulation_gwas/null_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '.fastGWA', sep = '\t')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/null_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '.fastGWA', sep = '\t'))
            
         if ('SNP' in lr_uni.columns.values) and ('ID' in lr_uni.columns.values):
             self.lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM'})
@@ -321,7 +336,7 @@ class KGWAS_Data:
         if pheno in scdrs_traits:
             print('Using scdrs traits...')
             self.pheno = pheno
-            lr_uni = pd.read_csv(data_path + 'scDRS_Data/sumstats_ukb_snps.csv')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'scDRS_Data/sumstats_ukb_snps.csv'))
             lr_uni = lr_uni[['CHR', 'SNP', 'POS', 'A1', 'A2', 'N', 'AF1', pheno]]
             lr_uni = lr_uni[lr_uni[pheno].notnull()].reset_index(drop = True)
             lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM', 'SNP': 'ID', pheno: 'chi'})
@@ -329,13 +344,13 @@ class KGWAS_Data:
             self.lr_uni = lr_uni
             self.seed = seed
             
-            trait2size = pickle.load(open(data_path + 'scDRS_data/trait2size.pkl', 'rb'))
+            trait2size = pickle.load(open(os.path.join(data_path, 'scDRS_data/trait2size.pkl'), 'rb'))
             self.sample_size = trait2size[pheno]
             
         else:
             ## load GWAS files
             self.pheno = pheno
-            lr_uni = pd.read_csv(data_path + 'full_gwas/' + str(self.pheno) + '_with_rel_fastgwa.fastGWA', sep = '\t')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'full_gwas/' + str(self.pheno) + '_with_rel_fastgwa.fastGWA'), sep = '\t')
             lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM', 'SNP': 'ID'})
 
             self.lr_uni = lr_uni
@@ -352,17 +367,17 @@ class KGWAS_Data:
         self.sample_size = sample_size
         self.pheno = pheno
         if (sample_size > 3000):
-            lr_uni = pd.read_csv(data_path + 'subsample_gwas/' + str(self.pheno) + \
-                     '_fastgwa_full_'+ str(sample_size) + '_' + str(seed) + '.fastGWA', sep = '\t')
+            lr_uni = pd.read_csv(os.path.join(data_path, 'subsample_gwas/' + str(self.pheno) + \
+                     '_fastgwa_full_'+ str(sample_size) + '_' + str(seed) + '.fastGWA'), sep = '\t')
             lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM', 'SNP': 'ID'})
         else:
             ## use PLINK if sample size <3000
             if binary:
-                lr_uni = pd.read_csv(data_path + 'subsample_gwas/' + str(self.pheno) + \
-                         '_plink_'+ str(sample_size) + '_' + str(seed) + '.PHENO1.glm.logistic.hybrid', sep = '\t')
+                lr_uni = pd.read_csv(os.path.join(data_path, 'subsample_gwas/' + str(self.pheno) + \
+                         '_plink_'+ str(sample_size) + '_' + str(seed) + '.PHENO1.glm.logistic.hybrid'), sep = '\t')
             else:
-                lr_uni = pd.read_csv(data_path + 'subsample_gwas/' + + str(self.pheno) + \
-                         '_plink_'+ str(sample_size) + '_' + str(seed) + '.PHENO1.glm.linear', sep = '\t')
+                lr_uni = pd.read_csv(os.path.join(data_path, 'subsample_gwas/' + + str(self.pheno) + \
+                         '_plink_'+ str(sample_size) + '_' + str(seed) + '.PHENO1.glm.linear'), sep = '\t')
         self.lr_uni = lr_uni
         self.seed = seed
 
@@ -371,8 +386,8 @@ class KGWAS_Data:
         lr_uni = self.lr_uni
         ## LD scores
 
-        ld_scores = pd.read_csv(data_path + 'ld_score/filter_genotyped_ldscores.csv')
-        w_ld_scores = pd.read_csv(data_path + 'ld_score/ldscores_from_data.csv')
+        ld_scores = pd.read_csv(os.path.join(data_path, 'ld_score/filter_genotyped_ldscores.csv'))
+        w_ld_scores = pd.read_csv(os.path.join(data_path, 'ld_score/ldscores_from_data.csv'))
 
         m = 15000000
         if 'N' not in lr_uni.columns.values:
