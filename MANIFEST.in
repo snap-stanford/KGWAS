@@ -1,0 +1,4 @@
+prune demo
+prune gwas
+include README.md
+include requirements.txt
