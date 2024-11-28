@@ -131,7 +131,7 @@ def get_mega_clump_query(data_path, clumps, snp_hits, no_hla = False, snp2ld_snp
                     # this snp does not have ld tagged snps, at least in UKB
                     clumps_pred.append([snp])
                     snps_in_clumps_pred += [snp]
-    idx2mega_clump_pred, idx2mega_clump_rsid_pred, idx2mega_clump_chrom_pred = get_meta_clumps(clumps_pred)
+    idx2mega_clump_pred, idx2mega_clump_rsid_pred, idx2mega_clump_chrom_pred = get_meta_clumps(clumps_pred, data_path)
     return idx2mega_clump_pred, idx2mega_clump_rsid_pred, idx2mega_clump_chrom_pred
 
 def get_curve(mega_clump_pred, mega_clump_gold):

@@ -280,11 +280,11 @@ class KGWAS_Data:
         heritability = 0.3
         self.sample_size = small_cohort
         if simulation_type == 'causal_link':
-            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_link_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_graph_funct_v2_ggi.fastGWA', sep = '\t'))
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_link_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_graph_funct_v2_ggi.fastGWA'), sep = '\t')
         elif simulation_type == 'causal':
-            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '_graph_funct_v2.fastGWA', sep = '\t'))
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/causal_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '_graph_funct_v2.fastGWA'), sep = '\t')
         elif simulation_type == 'null':
-            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/null_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '.fastGWA', sep = '\t'))
+            lr_uni = pd.read_csv(os.path.join(data_path, 'simulation_gwas/null_simulation/' + str(num_causal_hits) + '_' + str(seed) + '_' + str(heritability) + '_' + str(small_cohort) + '.fastGWA'), sep = '\t')
            
         if ('SNP' in lr_uni.columns.values) and ('ID' in lr_uni.columns.values):
             self.lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM'})
@@ -331,7 +331,7 @@ class KGWAS_Data:
         self.seed = seed
         
         
-    def load_full_gwas(self, pheno, seed):
+    def load_full_gwas(self, pheno, seed=42):
         data_path = self.data_path
         if pheno in scdrs_traits:
             print('Using scdrs traits...')
