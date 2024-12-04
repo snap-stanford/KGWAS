@@ -34,7 +34,7 @@ run.train(epoch = 10) ## train the model
 ## Data download
 To ensure fast user experience, we provide a default fast mode of KGWAS, which uses Enformer embedding for variant feature and ESM embedding for gene features (instead of the baselineLD for variant and PoPS for gene since they are large files). For the fast mode, you do not need to download any data, the KGWAS API will automatically download the relevant files. This mode can be used to apply KGWAS to your own GWAS sumstats. 
 
-If you want to (1) use the full mode of KGWAS (i.e. larger node embeddings) or (2) access the null/causal simulations or (3) access the 21 subsampled GWAS sumstats across various sample sizes or (4) analyze the KGWAS sumstats for subsampled data or (5) analyze the KGWAS sumstats for all UKBB ICD10 diseases, please use [this link](https://drive.google.com/file/d/1ENn6WuoKypdBp5SR79NKicFdvEqdfPDD/view?usp=sharing). Note that this file is large (around 45GB) and may take a while to download. 
+If you want to (1) use the full mode of KGWAS (i.e. larger node embeddings) or (2) access the null/causal simulations or (3) access the 21 subsampled GWAS sumstats across various sample sizes or (4) analyze the KGWAS sumstats for subsampled data or (5) analyze the KGWAS sumstats for all UKBB ICD10 diseases, please use [this link](https://drive.google.com/file/d/14UcHzPRIbdMmnLPZCHx_4G-gz2pipeg9/view?usp=sharing). Note that this file is large (around 55GB) and may take a while to download. 
 
 ## Tutorial
 
