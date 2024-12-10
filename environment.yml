@@ -1,0 +1,17 @@
+name: kgwas
+channels:
+  - pyg
+  - nvidia
+  - pytorch
+  - conda-forge
+dependencies:
+  - pyg::pyg
+  - pyg::pytorch-scatter
+  - pyg::pytorch-sparse
+  - pytorch::pytorch
+  - torchaudio
+  - torchvision
+  - ipykernel
+  - pip
+  - pip:
+    - kgwas
