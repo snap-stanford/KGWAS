@@ -1,6 +1,8 @@
 <p align="center"><img src="./fig/kgwas_logo.png" alt="logo" width="600px" /></p>
 
-# Genetics discovery powered by functional genomics knowledge graph
+# Genetics discovery powered by massive multi-modal and multi-scale functional genomics knowledge graph
+
+[**Preprint**](https://www.medrxiv.org/content/10.1101/2024.12.03.24318375v1) | [**Website**](https://kgwas.stanford.edu/) | [**Talk at Stanford Graph Learning Workshop**](https://youtu.be/0_jdg7FqSE4?si=3dZci2jdIFjSukJh)
 
 Genome-wide association studies (GWASs) have identified tens of thousands of disease-associated variants and provided critical insights into developing effective treatments. However, limited sample sizes have hindered the discovery of variants for less common and rare diseases.
 Here, we introduce KGWAS, a novel geometric deep learning method that leverages a massive functional knowledge graph across variants and genes to improve detection power in small-cohort GWASs significantly.
@@ -115,9 +117,12 @@ If you want to (1) use the full mode of KGWAS (i.e. larger node embeddings) or (
 ## Cite Us
 
 ```bibtex
-@misc{kgwas,
-      title={Small-cohort GWAS discovery with AI over massive functional genomics knowledge graph},
-      author={Kexin Huang and Tony Zeng and Soner Koc and Alexandra Pettet and Jingtian Zhou and Mika Jain and Dongbo Sun and Camilo Ruiz and Hongyu Ren and Laurence Howe and Tom Richardson and Adrian Cortes and Katie Aiello and Kim Branson and Andreas Pfenning and Jesse Engreitz and Martin Jinye Zhang and Jure Leskovec},
-      year={2024}
+@article{kgwas,
+  title={Small-cohort GWAS discovery with AI over massive functional genomics knowledge graph},
+  author={Huang, Kexin and Zeng, Tony and Koc, Soner and Pettet, Alexandra and Zhou, Jingtian and Jain, Mika and Sun, Dongbo and Ruiz, Camilo and Ren, Hongyu and Howe, Laurence J and others},
+  journal={medRxiv},
+  pages={2024--12},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory Press}
 }
 ```
