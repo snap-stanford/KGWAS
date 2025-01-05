@@ -325,6 +325,13 @@ class KGWAS_Data:
             raise ValueError('N column number of sample size not in the file!')  
         lr_uni = lr_uni.rename(columns = {'CHR': '#CHROM', 'SNP': 'ID'})
         
+        ## filtering to the current KG variant set
+        old_variant_set_len = len(lr_uni)
+        lr_uni = lr_uni[lr_uni.ID.isin(list(self.idx2id['SNP'].values()))]
+        print('Number of SNPs in the KG:', len(self.idx2id['SNP']))
+        print('Number of SNPs in the GWAS:', old_variant_set_len)
+        print('Number of SNPs in the KG variant set:', len(lr_uni))
+
         self.lr_uni = lr_uni
         self.sample_size = lr_uni.N.values[0]
         self.pheno = 'EXTERNAL'
@@ -423,14 +430,22 @@ class KGWAS_Data:
         if label == 'chi':
             if 'chi' in lr_uni.columns.values:
                 print('chi pre-computed...')
-                lr_uni['y'] = lr_uni['chi'].values
+                lr_uni['y'] = lr_uni['chi'].values            
             else:    
                 if self.pheno in (['body_BALDING1', 'cancer_BREAST', 'disease_ALLERGY_ECZEMA_DIAGNOSED', 'disease_HYPOTHYROIDISM_SELF_REP', 'other_MORNINGPERSON', 'pigment_SUNBURN']) and (self.sample_size <= 3000):
                     lr_uni['y'] = lr_uni['Z_STAT'].values**2
                     lr_uni['y'] = lr_uni.y.fillna(0)   
                 else:
-                    lr_uni['y'] = (lr_uni['BETA']/lr_uni['SE']).values**2
-                    lr_uni['y'] = lr_uni.y.fillna(0)   
+                    if ('BETA' in lr_uni.columns.values) and ('SE' in lr_uni.columns.values):
+                        lr_uni['y'] = (lr_uni['BETA']/lr_uni['SE']).values**2
+                        lr_uni['y'] = lr_uni.y.fillna(0)   
+                    else:
+                        from scipy.stats import chi2
+                        ## convert from p-values
+                        lr_uni['y'] = chi2.ppf(1 - lr_uni['P'].values, 1)
+                        lr_uni['y'] = lr_uni.y.fillna(0)
+
+
         elif label == 'residual-w-ld':
             lr_uni['y'] = (lr_uni['BETA']/lr_uni['SE']).values**2
             lr_uni['y'] = lr_uni.y.fillna(0)   
