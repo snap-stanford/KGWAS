@@ -82,7 +82,7 @@ class KGWAS:
         self.kgwas_res = pd.read_csv(os.path.join(path, 'pred.csv'), sep = None, engine = 'python')
         self.save_name = path.split('/')[-1]
 
-    def train(self, batch_size = 512, num_workers = 6, lr = 1e-4, 
+    def train(self, batch_size = 512, num_workers = 0, lr = 1e-4, 
                     weight_decay = 5e-4, epoch = 10, save_best_model = True, 
                     save_name = None, data_to_cuda = False):
         total_epoch = epoch
