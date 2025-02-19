@@ -13,6 +13,7 @@ from torch import nn
 from multiprocessing import Pool
 from tqdm import tqdm
 from functools import partial
+import pandas as pd
 
 from .params import main_data_path, cohort_data_path, kinship_path, withdraw_path
 
@@ -458,7 +459,7 @@ def get_network_weight(run, data):
                     )
         attention_layer = {i: j[1] for i,j in x_dict.items()}
         attention_all_layers.append(attention_layer)
-        x_dict = {i: j[0] for i,j in x_dict.items()}
+        x_dict = {i: j[0][0] for i,j in x_dict.items()}
 
     layer2rel2att = {
         'l1': {},
@@ -480,7 +481,7 @@ def get_network_weight(run, data):
         df_val['rel_type'] = rel[1] 
         df_val['t_type'] = rel[2] 
         df_val['layer'] = 'l1'
-        df_val_all = df_val_all.append(df_val)
+        df_val_all = pd.concat([df_val_all, df_val], ignore_index=True)
 
     for rel, value in layer2rel2att['l2'].items():
         df_val = pd.DataFrame(value).T.rename(columns = {0: 'h_idx', 1: 't_idx', 2: 'weight'})
@@ -488,7 +489,7 @@ def get_network_weight(run, data):
         df_val['rel_type'] = rel[1] 
         df_val['t_type'] = rel[2] 
         df_val['layer'] = 'l2'
-        df_val_all = df_val_all.append(df_val)
+        df_val_all = pd.concat([df_val_all, df_val], ignore_index=True)
 
     df_val_all = df_val_all.drop_duplicates(['h_idx', 't_idx', 'rel_type', 'layer'])
     return df_val_all
