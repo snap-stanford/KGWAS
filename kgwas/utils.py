@@ -628,7 +628,6 @@ def generate_viz(run, df_network, data_path, variant_threshold = 5e-8,
     g2p_hit_with_rel_type = pd.merge(g2p_hit, gene2program_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
     g2p_hit = g2p_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
     g2p_hit.loc[:,'rel_type'] = g2p_hit.rel_type.apply(lambda x: x.split('-')[1])
-    g2p_hit.loc[:,'Category'] = 'G2P'
     g2p_hit = g2p_hit.assign(Category='V2G')
     g2p_hit.loc[:,'h_id'] = g2p_hit['h_idx'].apply(lambda x: idx2id['BiologicalProcess'][x])
     g2p_hit.loc[:,'t_id'] = g2p_hit['t_idx'].apply(lambda x: idx2id['Gene'][x])
