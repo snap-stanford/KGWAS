@@ -13,6 +13,7 @@ from torch import nn
 from multiprocessing import Pool
 from tqdm import tqdm
 from functools import partial
+import pandas as pd
 
 from .params import main_data_path, cohort_data_path, kinship_path, withdraw_path
 
@@ -458,7 +459,7 @@ def get_network_weight(run, data):
                     )
         attention_layer = {i: j[1] for i,j in x_dict.items()}
         attention_all_layers.append(attention_layer)
-        x_dict = {i: j[0] for i,j in x_dict.items()}
+        x_dict = {i: j[0][0] for i,j in x_dict.items()}
 
     layer2rel2att = {
         'l1': {},
@@ -480,7 +481,7 @@ def get_network_weight(run, data):
         df_val['rel_type'] = rel[1] 
         df_val['t_type'] = rel[2] 
         df_val['layer'] = 'l1'
-        df_val_all = df_val_all.append(df_val)
+        df_val_all = pd.concat([df_val_all, df_val], ignore_index=True)
 
     for rel, value in layer2rel2att['l2'].items():
         df_val = pd.DataFrame(value).T.rename(columns = {0: 'h_idx', 1: 't_idx', 2: 'weight'})
@@ -488,7 +489,7 @@ def get_network_weight(run, data):
         df_val['rel_type'] = rel[1] 
         df_val['t_type'] = rel[2] 
         df_val['layer'] = 'l2'
-        df_val_all = df_val_all.append(df_val)
+        df_val_all = pd.concat([df_val_all, df_val], ignore_index=True)
 
     df_val_all = df_val_all.drop_duplicates(['h_idx', 't_idx', 'rel_type', 'layer'])
     return df_val_all
@@ -543,7 +544,7 @@ def generate_viz(run, df_network, data_path, variant_threshold = 5e-8,
 
     if 'SNP' not in gwas.columns.values:
         gwas.loc[:, 'SNP'] = gwas['ID']
-    hit_snps = gwas[gwas.P < 5e-8].SNP.values
+    hit_snps = gwas[gwas.P < variant_threshold].SNP.values
     hit_snps_idx = [id2idx['SNP'][i] for i in hit_snps]
     
     if magma_path is not None:
@@ -593,7 +594,7 @@ def generate_viz(run, df_network, data_path, variant_threshold = 5e-8,
     v2g_hit_with_rel_type = pd.merge(v2g_hit, snp2genes_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
     v2g_hit = v2g_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
     v2g_hit.loc[:,'rel_type'] = v2g_hit.rel_type.apply(lambda x: x[4:])
-    v2g_hit.loc[:,'Category'] = 'V2G'
+    v2g_hit = v2g_hit.assign(Category='V2G')
 
     v2g_hit.loc[:,'h_id'] = v2g_hit['h_idx'].apply(lambda x: idx2id['Gene'][x])
     v2g_hit.loc[:,'t_id'] = v2g_hit['t_idx'].apply(lambda x: idx2id['SNP'][x])
@@ -610,7 +611,7 @@ def generate_viz(run, df_network, data_path, variant_threshold = 5e-8,
     g2g_hit_with_rel_type = pd.merge(g2g_hit, gene2gene_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
     g2g_hit = g2g_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
     g2g_hit.loc[:,'rel_type'] = g2g_hit.rel_type.apply(lambda x: x.split('-')[1])
-    g2g_hit.loc[:,'Category'] = 'G2G'
+    g2g_hit = g2g_hit.assign(Category='G2G')
 
     g2g_hit.loc[:,'h_id'] = g2g_hit['h_idx'].apply(lambda x: idx2id['Gene'][x])
     g2g_hit.loc[:,'t_id'] = g2g_hit['t_idx'].apply(lambda x: idx2id['Gene'][x])
@@ -628,7 +629,7 @@ def generate_viz(run, df_network, data_path, variant_threshold = 5e-8,
     g2p_hit_with_rel_type = pd.merge(g2p_hit, gene2program_hit, left_on=['h_idx', 't_idx', 'importance'], right_on=['h_idx', 't_idx', 'z_rel'], how='left')
     g2p_hit = g2p_hit_with_rel_type[['h_idx', 't_idx', 'importance', 'h_type', 't_type', 'rel_type']]
     g2p_hit.loc[:,'rel_type'] = g2p_hit.rel_type.apply(lambda x: x.split('-')[1])
-    g2p_hit.loc[:,'Category'] = 'G2P'
+    g2p_hit = g2p_hit.assign(Category='G2P')
     g2p_hit.loc[:,'h_id'] = g2p_hit['h_idx'].apply(lambda x: idx2id['BiologicalProcess'][x])
     g2p_hit.loc[:,'t_id'] = g2p_hit['t_idx'].apply(lambda x: idx2id['Gene'][x])
     g2p_hit.loc[:,'h_id'] = g2p_hit.h_id.apply(lambda x: go2name[x].capitalize() if x in go2name else x)
