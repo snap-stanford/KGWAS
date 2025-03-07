@@ -15,6 +15,8 @@ Install Pytorch Geometric by following [this instruction](https://pytorch-geomet
 pip install KGWAS
 ```
 
+It usually takes <10 minutes to install. 
+
 ## Core KGWAS API Usage
 
 ```python
